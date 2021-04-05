@@ -1,0 +1,247 @@
+<html>
+    <head>
+        <meta charset="utf8">
+        <style>
+            body {
+                font-family: Arial, Sans Serif;
+            }
+
+            .main-wrapper {
+                display: flex;
+            }
+
+            .board-panel {
+                margin-right: 15px;
+            }
+
+            .board-row {
+                display: flex;
+            }
+
+            .board-cell {
+                width: 48px;
+                height: 48px;
+                border: 1px solid white;
+            }
+
+            .filter-element {
+                margin-bottom: 15px;
+            }
+
+            .move-slider {
+                display: flex;
+                margin: 5px 0;
+            }
+
+            .move-slider label {
+            	width: 80px;
+            }
+        </style>
+        <script src="chess-heatmap.js"></script>
+    </head>
+    <body>
+        <h1>Chess Heatmap</h1>
+        <p>
+            This map shows the most used squares (meaning there was a pawn or a piece on the square) over all recorded games of a selected chess grandmaster. Blue intensity is at maximum for the most used square over the selected range of moves; other square intensities are displayed proportionally. Opening positions dominate positions which happen later in games, because they are diluted into combinatorial explosion. Slide the "Min move" cursor to the right to see how positions evolve throughout games.
+        </p>
+        <div class="main-wrapper">
+            <div class="board-panel">
+                <div class="board"></div>
+                <div class="board-controls">
+                    <div class="move-slider">
+                        <label for="min-move">Min move: </label>
+                        <input
+                            type="range" min="0" max="150" value="0"
+                            id="min-move"
+                            class="moveBoundary"
+                            autocomplete="off"
+                        >
+                        <span class="min-move-display">0</span>
+                    </div>
+                    <div class="move-slider">
+                        <label for="min-move">Max move: </label>
+                        <input
+                            type="range" min="0" max="200" value="200"
+                            id="max-move"
+                            class="moveBoundary"
+                            autocomplete="off"
+                        >
+                        <span class="max-move-display">200</span>
+                    </div>
+                    <div>
+                        <button class="animate-button">Animate!</button>
+                    </div>
+                </div>
+            </div>
+            <div class="filters-panel">
+                <div class="filter-element view-filter">
+                    View:
+                    <input type="radio" name="view" value="positional" id="view-positional" autocomplete="off" checked><label for="view-positional">Positional</label>
+                    <input type="radio" name="view" value="directional" id="view-directional" autocomplete="off"><label for="view-directional">Directional</label>
+                </div>
+                <div class="filter-element">
+                    <label for="player-name">Player: </label>
+                    <select id="player-name" autocomplete="off">
+                        <option value="Garry Kasparov">Garry Kasparov</option>
+                        <option value="Bobby Fischer">Bobby Fischer</option>
+                        <option value="Magnus Carlsen">Magnus Carlsen</option>
+                        <option value="Hikaru Nakamura">Hikaru Nakamura</option>
+                        <option value="Fabiano Caruana">Fabiano Caruana</option>
+                        <option value="Jose Raul Capablanca">Jose Raul Capablanca</option>
+                        <option value="Judit Polgar">Judit Polgar</option>
+                        <option value="Mikhail Botvinnik">Mikhail Botvinnik</option>
+                        <option value="Paul Morphy">Paul Morphy</option>
+                        <option value="Viswanathan Anand">Viswanathan Anand</option>
+                    </select>
+                </div>
+                <div class="filter-element color-filter">
+                    Color:
+                    <input type="radio" name="color" value="white" id="color-white" autocomplete="off" checked><label for="color-white">White</label>
+                    <input type="radio" name="color" value="black" id="color-black" autocomplete="off"><label for="color-black">Black</label>
+                </div>
+                <div class="filter-element piece-filter">
+                    Pieces:<br>
+                    <input type="checkbox" name="piece" value="K" id="piece-K" autocomplete="off" checked><label for="piece-K">♔ King</label><br>
+                    <input type="checkbox" name="piece" value="Q" id="piece-Q" autocomplete="off" checked><label for="piece-Q">♕ Queen</label><br>
+                    <input type="checkbox" name="piece" value="R" id="piece-R" autocomplete="off" checked><label for="piece-R">♖ Rook</label><br>
+                    <input type="checkbox" name="piece" value="B" id="piece-B" autocomplete="off" checked><label for="piece-B">♗ Bishop</label><br>
+                    <input type="checkbox" name="piece" value="N" id="piece-N" autocomplete="off" checked><label for="piece-N">♘ Knight</label><br>
+                    <input type="checkbox" name="piece" value="p" id="piece-p" autocomplete="off" checked><label for="piece-p">♙ Pawn</label>
+                </div>
+            </div>
+        </div>
+    </body>
+
+    <script type="text/javascript">
+        const SITE_PREFIX = '/chess-heatmap';
+        let ANIMATION_INTERVAL_ID = null;
+
+        // Boundaries helpers
+        function getMovesChoice() {
+            return ['#min-move', '#max-move'].map(
+                selector => parseInt(document.querySelector(selector).value)
+            );
+        }
+
+        function setMinMove(value) {
+            setMoveLimit('#min-move', value);
+        }
+
+        function setMaxMove(value) {
+            setMoveLimit('#max-move', value);
+        }
+
+        function setMoveLimit(selector, value) {
+            let range = document.querySelector(selector);
+            range.value = value;
+            range.dispatchEvent(new Event('change'));
+        }
+
+        function getMinMove(value) {
+            return getMovesChoice()[0];
+        }
+
+        function getMaxMove(value) {
+            return getMovesChoice()[1];
+        }
+
+        function incrMinMove() {
+            setMinMove(getMinMove() + 1);
+        }
+
+        function incrMaxMove() {
+            setMaxMove(getMaxMove() + 1);
+        }
+
+        function animate() {
+            if (ANIMATION_INTERVAL_ID != null) {
+                return;
+            }
+            setMinMove(0);
+            setMaxMove(0);
+            ANIMATION_INTERVAL_ID = window.setInterval(runForwardTranslation, 100);
+        }
+
+        function runForwardTranslation() {
+            let currentMaxBound = getMaxMove();
+            if (currentMaxBound >= board.maxMoves) {
+                window.clearInterval(ANIMATION_INTERVAL_ID);
+                ANIMATION_INTERVAL_ID = null;
+                return;
+            }
+            incrMaxMove();
+            if (currentMaxBound - getMinMove() >= 5) {
+                incrMinMove();
+            }
+        }
+
+        let boardContainer = document.querySelector('.board');
+        let board = new Board(boardContainer);
+
+        for (let boundInput of document.querySelectorAll('.moveBoundary')) {
+            boundInput.addEventListener('change', function(event) {
+                board.setMoveBoundaries(getMovesChoice());
+                document
+                    .querySelector('.'+boundInput.id+'-display')
+                    .textContent = event.target.value;
+            });
+        }
+
+        document
+            .querySelector('.view-filter')
+            .addEventListener('change', function(event) {
+                if (!event.target.matches('input[name="view"]:checked')) {
+                    return;
+                }
+                let view = event.target.value;
+                board.setView(view);
+            });
+
+        document
+            .querySelector('#player-name')
+            .addEventListener('change', function(event) {
+                let playerName = event.target.value.replaceAll(' ', '_');
+                let aggregatesUri = `${SITE_PREFIX}/games/${playerName}.json`;
+                board.loadPlayer(aggregatesUri);
+            });
+
+        document
+            .querySelector('.color-filter')
+            .addEventListener('change', function(event) {
+                if (!event.target.matches('input[name="color"]:checked')) {
+                    return;
+                }
+                let color = event.target.value;
+                board.setColor(color);
+            });
+
+        document
+            .querySelector('.piece-filter')
+            .addEventListener('change', function(event) {
+                let value = event.target.value;
+                let pieces = Array.from(document.querySelectorAll(
+                    'input[name="piece"]:checked'
+                )).map(input => input.value);
+                board.setPieces(pieces);
+            });
+
+        document
+            .querySelector('.animate-button')
+            .addEventListener('click', function(event) {
+                animate();
+            });
+
+        boardContainer.addEventListener('maxMovesUpdated', function(event) {
+            for (let input of document.querySelectorAll('.moveBoundary')) {
+                if (input.id == 'max-move' && input.value > board.maxMoves) {
+                    setMaxMove(board.maxMoves);
+                }
+                input.setAttribute('max', board.maxMoves);
+            }
+        });
+
+        board.initialize();
+        board.loadPlayer(`${SITE_PREFIX}/games/Garry_Kasparov.json`);
+    </script>
+
+</html>
