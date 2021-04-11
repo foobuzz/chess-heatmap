@@ -1,7 +1,7 @@
 Chess Heatmap
 =============
 
-The code that powers chess-heatmap.github.io.
+The code that powers [https://foobuzz.github.io/chess-heatmap/](https://foobuzz.github.io/chess-heatmap/).
 
 It works in 3 parts:
 
